@@ -4,6 +4,7 @@ import (
 	"context"
 	"go-react/database"
 	"go-react/routes"
+	"go-react/utils"
 	"log"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 
 var config = fiber.Config{
 	//override default error handle
-	ErrorHandler: func(ctx *fiber.Ctx, err error) error {
+	ErrorHandler: func(c *fiber.Ctx, err error) error {
 		// Statuscode defaults to 500
 		code := fiber.StatusInternalServerError
 
@@ -22,7 +23,12 @@ var config = fiber.Config{
 			code = e.Code
 		}
 		// Return from handler
-		return ctx.Status(code).JSON(fiber.Map{"message": err.Error()})
+		return utils.CusResponse(utils.CusResp{
+			Context: c,
+			Code:    code,
+			Data:    nil,
+			Error:   err,
+		})
 	},
 }
 

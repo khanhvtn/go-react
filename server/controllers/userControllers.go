@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"go-react/database"
 	models "go-react/models"
+	"go-react/utils"
 	"log"
 	"time"
 
@@ -33,7 +33,7 @@ func GetUsers(c *fiber.Ctx) error {
 	defer cancel()
 
 	//create an empty array from user mdoel.
-	var users []models.User
+	var users []bson.M
 
 	//get all user record
 	cur, err := userCol.Find(ctx, bson.D{})
@@ -46,7 +46,11 @@ func GetUsers(c *fiber.Ctx) error {
 		return fiber.NewError(500, "Something went wrong.")
 	}
 	//response data to client
-	return c.Status(200).JSON(users)
+	return utils.CusResponse(utils.CusResp{
+		Context: c,
+		Code:    200,
+		Data:    users,
+		Error:   nil})
 }
 
 //CreateUser func to create a user.
@@ -83,13 +87,16 @@ func CreateUser(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(500, "Something went wrong.")
 	}
-
-	return c.Status(200).JSON(fiber.Map{
-		"_id":      insertResult.InsertedID,
-		"email":    user.Email,
-		"password": user.Password,
-		"role":     user.Role,
-	})
+	return utils.CusResponse(utils.CusResp{
+		Context: c,
+		Code:    200,
+		Data: fiber.Map{
+			"_id":      insertResult.InsertedID,
+			"email":    user.Email,
+			"password": user.Password,
+			"role":     user.Role,
+		},
+		Error: nil})
 }
 
 type userLogin struct {
@@ -150,7 +157,12 @@ func Login(c *fiber.Ctx) error {
 	}
 
 	//send back token to client
-	return c.Status(200).JSON(fiber.Map{"token": token})
+	// return c.Status(200).JSON(fiber.Map{"token": token})
+	return utils.CusResponse(utils.CusResp{
+		Context: c,
+		Code:    200,
+		Data:    fiber.Map{"token": token},
+		Error:   nil})
 }
 
 // UpdateUser func is to update user information
@@ -167,7 +179,13 @@ func UpdateUser(c *fiber.Ctx) error {
 		return fiber.NewError(500, "Something went wrong.")
 	}
 
-	fmt.Println(user)
+	// hash password
+	hashPass, err := bcrypt.GenerateFromPassword([]byte(user.Password), 10)
+	if err != nil {
+		return fiber.NewError(500, "Something went wrong.")
+	}
+	user.Password = string(hashPass)
+
 	//update user information
 	filter := bson.M{"email": user.Email}
 	update := bson.M{"$set": user}
@@ -178,7 +196,12 @@ func UpdateUser(c *fiber.Ctx) error {
 	}
 
 	//response back to client
-	return c.Status(200).JSON(updateResult)
+	// return c.Status(200).JSON(updateResult)
+	return utils.CusResponse(utils.CusResp{
+		Context: c,
+		Code:    200,
+		Data:    updateResult,
+		Error:   nil})
 }
 
 //DeleteUser func is to delete an user.
@@ -202,5 +225,10 @@ func DeleteUser(c *fiber.Ctx) error {
 		return fiber.NewError(400, "Invalid ID.")
 	}
 	//response to client when delete successful.
-	return c.Status(200).JSON(deleteResult)
+	// return c.Status(200).JSON(deleteResult)
+	return utils.CusResponse(utils.CusResp{
+		Context: c,
+		Code:    200,
+		Data:    deleteResult,
+		Error:   nil})
 }
