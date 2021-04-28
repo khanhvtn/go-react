@@ -35,6 +35,14 @@ var config = fiber.Config{
 func main() {
 	app := fiber.New(config)
 	app.Static("/", "../client/build")
+	app.Get("/test", func(c *fiber.Ctx) error {
+		user, err := database.MongoClient.DeleteOne("users", "60804f5cb98dcb283b32e0a4")
+		if err != nil {
+			return fiber.NewError(500, err.Error())
+		}
+
+		return c.Status(200).JSON(user)
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

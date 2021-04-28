@@ -20,7 +20,8 @@ import (
 //createCtxAndUserCol func is to create user collection, context, and cancel.
 func createCtxAndUserCol() (userCol *mongo.Collection, ctx context.Context, cancel context.CancelFunc) {
 	//get user collection
-	userCol = database.MongoClient.Database("goDB").Collection("users")
+
+	userCol = database.MongoClient.Client.Database("goDB").Collection("users")
 	//crete context with timeout
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	return

@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"go-react/controllers"
+
 	"github.com/gofiber/fiber/v2"
 )
 
