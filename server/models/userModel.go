@@ -1,6 +1,8 @@
 package models
 
 import (
+	"go-react/database"
+
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -11,3 +13,6 @@ type User struct {
 	Password string             `json:"password" bson:"password"`
 	Role     string             `json:"role" bson:"role"`
 }
+
+//UserQuery var is to query data from user collection
+var UserQuery = database.MongoQuery{"users"}

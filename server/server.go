@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"go-react/database"
+	"go-react/models"
 	"go-react/routes"
 	"go-react/utils"
 	"log"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -36,12 +39,12 @@ func main() {
 	app := fiber.New(config)
 	app.Static("/", "../client/build")
 	app.Get("/test", func(c *fiber.Ctx) error {
-		user, err := database.MongoClient.DeleteOne("users", "60804f5cb98dcb283b32e0a4")
+		users, err := models.UserQuery.GetOne(bson.M{"_id": "608511af211ec4f13bdc1a6a"})
 		if err != nil {
 			return fiber.NewError(500, err.Error())
 		}
 
-		return c.Status(200).JSON(user)
+		return c.Status(200).JSON(users)
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

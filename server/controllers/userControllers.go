@@ -8,8 +8,6 @@ import (
 	"log"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
-
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
@@ -21,7 +19,7 @@ import (
 func createCtxAndUserCol() (userCol *mongo.Collection, ctx context.Context, cancel context.CancelFunc) {
 	//get user collection
 
-	userCol = database.MongoClient.Client.Database("goDB").Collection("users")
+	userCol = database.MongoClient.Database("goDB").Collection("users")
 	//crete context with timeout
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	return
@@ -29,21 +27,9 @@ func createCtxAndUserCol() (userCol *mongo.Collection, ctx context.Context, canc
 
 //GetUsers func to get all users.
 func GetUsers(c *fiber.Ctx) error {
-	//get user collection , context, cancel func
-	userCol, ctx, cancel := createCtxAndUserCol()
-	defer cancel()
-
-	//create an empty array from user mdoel.
-	var users []bson.M
-
 	//get all user record
-	cur, err := userCol.Find(ctx, bson.D{})
+	users, err := models.UserQuery.GetAll()
 	if err != nil {
-		return fiber.NewError(500, "Something went wrong.")
-	}
-	defer cur.Close(ctx)
-	//map data to user variable
-	if err = cur.All(ctx, &users); err != nil {
 		return fiber.NewError(500, "Something went wrong.")
 	}
 	//response data to client
@@ -56,9 +42,6 @@ func GetUsers(c *fiber.Ctx) error {
 
 //CreateUser func to create a user.
 func CreateUser(c *fiber.Ctx) error {
-	//get user collection , context, cancel func
-	userCol, ctx, cancel := createCtxAndUserCol()
-	defer cancel()
 
 	user := new(models.User)
 	if err := c.BodyParser(user); err != nil {
@@ -66,12 +49,11 @@ func CreateUser(c *fiber.Ctx) error {
 	}
 
 	//check user exists or not
-	existedUser := new(models.User)
-	if err := userCol.FindOne(ctx, bson.M{"email": user.Email}).Decode(&existedUser); err != nil {
-		if err != mongo.ErrNoDocuments {
-			return fiber.NewError(500, "Something went wrong.")
-		}
-	} else {
+	existedUser, err := models.UserQuery.GetOne(bson.M{"email": user.Email})
+	if err != nil {
+		return fiber.NewError(500, "Something went wrong.")
+	}
+	if existedUser != nil {
 		return c.Status(400).JSON(fiber.Map{"message": "Email already exists."})
 	}
 
@@ -83,21 +65,22 @@ func CreateUser(c *fiber.Ctx) error {
 	//set hash password to new user
 	user.Password = string(hashPassword)
 
+	//convert User type to bson.M
+	bsonMUser, err := utils.InterfaceToBsonM(user)
+	if err != nil {
+		return fiber.NewError(500, "Something went wrong.")
+	}
+
 	//create user in database
-	insertResult, err := userCol.InsertOne(ctx, user)
+	newUser, err := models.UserQuery.Create(bsonMUser)
 	if err != nil {
 		return fiber.NewError(500, "Something went wrong.")
 	}
 	return utils.CusResponse(utils.CusResp{
 		Context: c,
 		Code:    200,
-		Data: fiber.Map{
-			"_id":      insertResult.InsertedID,
-			"email":    user.Email,
-			"password": user.Password,
-			"role":     user.Role,
-		},
-		Error: nil})
+		Data:    newUser,
+		Error:   nil})
 }
 
 type userLogin struct {
@@ -113,10 +96,10 @@ type Claims struct {
 	jwt.StandardClaims
 }
 
-func genToken(user *models.User) (string, error) {
+func genToken(user *bson.M) (string, error) {
 	expiredTime := time.Now().Add(60 * time.Second)
 	claims := &Claims{
-		Email: user.Email,
+		Email: "email",
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expiredTime.Unix(),
 		},
@@ -128,9 +111,6 @@ func genToken(user *models.User) (string, error) {
 
 //Login func to check user login
 func Login(c *fiber.Ctx) error {
-	//get user collection , context, cancel func
-	userCol, ctx, cancel := createCtxAndUserCol()
-	defer cancel()
 
 	userLogin := new(userLogin)
 	if err := c.BodyParser(userLogin); err != nil {
@@ -138,21 +118,24 @@ func Login(c *fiber.Ctx) error {
 	}
 
 	//check user exists or not
-	existedUser := new(models.User)
-	if err := userCol.FindOne(ctx, bson.M{"email": userLogin.Email}).Decode(&existedUser); err != nil {
-		if err == mongo.ErrNoDocuments {
-			return c.Status(400).JSON(fiber.Map{"message": "Email or Password is invalid."})
-		}
+	existedUser, err := models.UserQuery.GetOne(bson.M{"email": userLogin.Email})
+
+	if err != nil {
 		return fiber.NewError(500, "Something went wrong.")
 	}
+	if existedUser == nil {
+		return c.Status(400).JSON(fiber.Map{"message": "Email or Password is invalid."})
+	}
+
+	user := existedUser.(bson.M)
 
 	//check password is valid
-	if err := bcrypt.CompareHashAndPassword([]byte(existedUser.Password), []byte(userLogin.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user["password"].(string)), []byte(userLogin.Password)); err != nil {
 		return c.Status(400).JSON(fiber.Map{"message": "Email or Password is invalid."})
 	}
 
 	//create token
-	token, err := genToken(existedUser)
+	token, err := genToken(&user)
 	if err != nil {
 		return fiber.NewError(500, "Something went wrong.")
 	}
@@ -168,9 +151,6 @@ func Login(c *fiber.Ctx) error {
 
 // UpdateUser func is to update user information
 func UpdateUser(c *fiber.Ctx) error {
-	//get user collection , context, cancel func
-	userCol, ctx, cancel := createCtxAndUserCol()
-	defer cancel()
 
 	//get data client request
 	user := new(models.User)
@@ -187,17 +167,22 @@ func UpdateUser(c *fiber.Ctx) error {
 	}
 	user.Password = string(hashPass)
 
+	//convert User type to bson.M
+	bsonMUser, err := utils.InterfaceToBsonM(user)
+
 	//update user information
 	filter := bson.M{"email": user.Email}
-	update := bson.M{"$set": user}
-	updateResult, err := userCol.UpdateOne(ctx, filter, update)
+
+	updateResult, err := models.UserQuery.UpdateOne(filter, bsonMUser)
 	if err != nil {
-		log.Fatal(err)
 		return fiber.NewError(500, "Something went wrong.")
 	}
 
+	if updateResult == nil {
+		return fiber.NewError(400, "Update Fail.")
+	}
+
 	//response back to client
-	// return c.Status(200).JSON(updateResult)
 	return utils.CusResponse(utils.CusResp{
 		Context: c,
 		Code:    200,
@@ -207,29 +192,23 @@ func UpdateUser(c *fiber.Ctx) error {
 
 //DeleteUser func is to delete an user.
 func DeleteUser(c *fiber.Ctx) error {
-	userCol, ctx, cancel := createCtxAndUserCol()
-	defer cancel()
 
 	//get id from client request
-	id, err := primitive.ObjectIDFromHex(c.Params("id"))
-	if err != nil {
-		//response to client if there is an error.
-		return fiber.NewError(500, "Something went wrong.")
-	}
+	id := c.Params("id")
 	//delete user from database
-	deleteResult, err := userCol.DeleteOne(ctx, bson.M{"_id": id})
+	deletedResult, err := models.UserQuery.DeleteOne(bson.M{"_id": id})
 	if err != nil {
 		//response to client if there is an error.
 		return fiber.NewError(500, "Something went wrong.")
 	}
-	if deleteResult.DeletedCount == 0 {
-		return fiber.NewError(400, "Invalid ID.")
+	if deletedResult == nil {
+		return fiber.NewError(400, "Delete Fail.")
 	}
 	//response to client when delete successful.
 	// return c.Status(200).JSON(deleteResult)
 	return utils.CusResponse(utils.CusResp{
 		Context: c,
 		Code:    200,
-		Data:    deleteResult,
+		Data:    deletedResult,
 		Error:   nil})
 }

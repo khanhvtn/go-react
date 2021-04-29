@@ -14,21 +14,13 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-//MongGoQuery interface is a collections of method to query data in MongoDB
-type MongoQuery interface {
-	GetAll(collectionName string) (interface{}, error)
-	GetOne(collectionName string) (interface{}, error)
-	UpdateOne(collectionName string) (interface{}, error)
-	DeleteOne(collectionName string) (interface{}, error)
-}
-
-//MongoDB struct is a collection fields for MongoDB
-type MongoDB struct {
-	Client *mongo.Client
+//MongoQuery struct is a collection fields for MongoDB
+type MongoQuery struct {
+	CollectionName string
 }
 
 //MongoClient var
-var MongoClient MongoDB
+var MongoClient *mongo.Client
 
 //ConnectMongoDB func to connect to mongodb
 func ConnectMongoDB() *mongo.Client {
@@ -52,23 +44,23 @@ func ConnectMongoDB() *mongo.Client {
 		log.Fatal(err)
 	}
 	fmt.Println("Connect to MongoDB successfull.")
-	MongoClient.Client = client
+	MongoClient = client
 	return client
 }
 
 //createCtxAndUserCol func is to create user collection, context, and cancel.
 func createCtxAndUserCol(collectionName string) (col *mongo.Collection, ctx context.Context, cancel context.CancelFunc) {
 	//get user collection
-	col = MongoClient.Client.Database("goDB").Collection(collectionName)
+	col = MongoClient.Database("goDB").Collection(collectionName)
 	//crete context with timeout
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	return
 }
 
 //GetAll func is to return all record from a collection.
-func (mongoDB MongoDB) GetAll(collectionName string) (interface{}, error) {
+func (mongoQuery MongoQuery) GetAll() (interface{}, error) {
 	//get a collection , context, cancel func
-	collection, ctx, cancel := createCtxAndUserCol(collectionName)
+	collection, ctx, cancel := createCtxAndUserCol(mongoQuery.CollectionName)
 	defer cancel()
 
 	//create an empty array to store all fields from collection
@@ -77,93 +69,97 @@ func (mongoDB MongoDB) GetAll(collectionName string) (interface{}, error) {
 	//get all user record
 	cur, err := collection.Find(ctx, bson.D{})
 	if err != nil {
-		return nil, fiber.NewError(500, "Something went wrong.")
+		return nil, err
 	}
 	defer cur.Close(ctx)
 	//map data to user variable
 	if err = cur.All(ctx, &data); err != nil {
-		return nil, fiber.NewError(500, "Something went wrong.")
+		return nil, err
 	}
 	//response data to client
 	return data, nil
 }
 
 //GetOne func is to get one record from a collection
-func (mongoDB MongoDB) GetOne(collectionName string, id string) (interface{}, error) {
+func (mongoQuery MongoQuery) GetOne(filter bson.M) (interface{}, error) {
 	//get a collection , context, cancel func
-	collection, ctx, cancel := createCtxAndUserCol(collectionName)
-	defer cancel()
-
-	//get id from client request
-	idFilter, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		//response to client if there is an error.
-		return nil, fiber.NewError(500, "Something went wrong.")
-	}
-
-	result := bson.M{}
-	//Decode record into result
-	if err := collection.FindOne(ctx, bson.M{"_id": idFilter}).Decode(&result); err != nil {
-		if err != mongo.ErrNoDocuments {
-			//return err if there is a system error
-			return nil, fiber.NewError(500, "Something went wrong.")
-		} else {
-			//return nil data when id is not existed.
-			return nil, nil
-		}
-	}
-	return result, nil
-}
-
-//UpdateOne func is to update one record from a collection
-func (mongoDB MongoDB) UpdateOne(collectionName string, filter bson.M, update bson.M) (interface{}, error) {
-	//get a collection , context, cancel func
-	collection, ctx, cancel := createCtxAndUserCol(collectionName)
+	collection, ctx, cancel := createCtxAndUserCol(mongoQuery.CollectionName)
 	defer cancel()
 
 	//conver id to object id when filter contain _id
 	if checkID := filter["_id"]; checkID != nil {
 		id, err := primitive.ObjectIDFromHex(checkID.(string))
 		if err != nil {
-			return nil, fiber.NewError(500, "Something went wrong.")
+			return nil, err
 		}
 		filter["_id"] = id
 	}
+
+	result := bson.M{}
+	//Decode record into result
+	if err := collection.FindOne(ctx, filter).Decode(&result); err != nil {
+		if err != mongo.ErrNoDocuments {
+			//return err if there is a system error
+			return nil, err
+		}
+		//return nil data when id is not existed.
+		return nil, nil
+
+	}
+
+	return result, nil
+}
+
+//Create func is to create a new record to a collection
+func (mongoQuery MongoQuery) Create(newData bson.M) (interface{}, error) {
+	//get a collection , context, cancel func
+	collection, ctx, cancel := createCtxAndUserCol(mongoQuery.CollectionName)
+	defer cancel()
+
+	//create user in database
+	insertResult, err := collection.InsertOne(ctx, newData)
+	if err != nil {
+		return nil, err
+	}
+	newData["_id"] = insertResult.InsertedID
+	return newData, nil
+}
+
+//UpdateOne func is to update one record from a collection
+func (mongoQuery MongoQuery) UpdateOne(filter bson.M, update bson.M) (interface{}, error) {
+	//get a collection , context, cancel func
+	collection, ctx, cancel := createCtxAndUserCol(mongoQuery.CollectionName)
+	defer cancel()
 
 	//update user information
 	newUpdate := bson.M{"$set": update}
 	updateResult, err := collection.UpdateOne(ctx, filter, newUpdate)
 	if err != nil {
 		log.Fatal(err)
-		return nil, fiber.NewError(500, "Something went wrong.")
+		return nil, err
 	}
 	if updateResult.MatchedCount == 0 {
-		return nil, fiber.NewError(500, "Update Fail.")
+		return nil, nil
 	}
 	return update, nil
 }
 
-//Delete func is to update one record from a collection
-func (mongoDB MongoDB) DeleteOne(collectionName string, id string) (interface{}, error) {
+//DeleteOne func is to update one record from a collection
+func (mongoQuery MongoQuery) DeleteOne(filter bson.M) (interface{}, error) {
 	//get a collection , context, cancel func
-	collection, ctx, cancel := createCtxAndUserCol(collectionName)
+	collection, ctx, cancel := createCtxAndUserCol(mongoQuery.CollectionName)
 	defer cancel()
 
-	result, err := mongoDB.GetOne(collectionName, id)
+	result, err := mongoQuery.GetOne(filter)
 	if err != nil {
 		return nil, err
 	}
 
-	idFilter, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return nil, fiber.NewError(500, "Something went wrong.")
-	}
-
 	//delete user from database
-	deleteResult, err := collection.DeleteOne(ctx, bson.M{"_id": idFilter})
+	deleteResult, err := collection.DeleteOne(ctx, filter)
 	if err != nil {
 		//response to client if there is an error.
-		return nil, fiber.NewError(500, "Something went wrong.")
+		return nil, err
 	}
 
 	if deleteResult.DeletedCount == 0 {
