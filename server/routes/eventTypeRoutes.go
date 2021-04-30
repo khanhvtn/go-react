@@ -12,6 +12,6 @@ func SetEventTypeRoutes(app *fiber.App) {
 	router.Get("/", controllers.GetEventTypes)
 	router.Get("/:id", controllers.GetEventType)
 	router.Post("/create", controllers.CreateEventType)
-	router.Patch("/update", controllers.UpdateEventType)
+	router.Patch("/update/:id", controllers.UpdateEventType)
 	router.Delete("/delete/:id", controllers.DeleteEventType)
 }

@@ -12,6 +12,6 @@ func SetUserRoutes(app *fiber.App) {
 	router.Get("/", controllers.GetUsers)
 	router.Post("/login", controllers.Login)
 	router.Post("/create", controllers.CreateUser)
-	router.Patch("/update", controllers.UpdateUser)
+	router.Patch("/update/:id", controllers.UpdateUser)
 	router.Delete("/delete/:id", controllers.DeleteUser)
 }

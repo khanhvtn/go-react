@@ -14,5 +14,5 @@ type User struct {
 	Role     string             `json:"role" bson:"role"`
 }
 
-//UserQuery var is to query data from user collection
-var UserQuery = database.MongoQuery{"users"}
+//UserQuery var is to query data from users collection
+var UserQuery = database.MongoQuery{CollectionName: "users"}

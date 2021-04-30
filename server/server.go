@@ -59,6 +59,8 @@ func main() {
 
 	//Set up routers
 	routes.SetUserRoutes(app)
+	routes.SetEventTypeRoutes(app)
+	routes.SetEventRoutes(app)
 
 	// Last middleware to match anything
 	app.Use(func(c *fiber.Ctx) error {

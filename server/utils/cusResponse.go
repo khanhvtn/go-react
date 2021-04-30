@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"reflect"
 
 	"github.com/gofiber/fiber/v2"
@@ -27,9 +26,7 @@ func CusResponse(cusResp CusResp) error {
 	}
 	//calcualte len data
 	var dataLen int
-
 	if result := reflect.TypeOf(cusResp.Data); result.Kind() == reflect.Slice {
-		fmt.Println(result.Kind().String())
 		castData := cusResp.Data.([]bson.M)
 		dataLen = len(castData)
 	} else {

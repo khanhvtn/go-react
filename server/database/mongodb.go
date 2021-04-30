@@ -86,13 +86,15 @@ func (mongoQuery MongoQuery) GetOne(filter bson.M) (interface{}, error) {
 	collection, ctx, cancel := createCtxAndUserCol(mongoQuery.CollectionName)
 	defer cancel()
 
-	//conver id to object id when filter contain _id
+	//convert id to object id when filter contain _id
 	if checkID := filter["_id"]; checkID != nil {
-		id, err := primitive.ObjectIDFromHex(checkID.(string))
-		if err != nil {
-			return nil, err
+		if _, ok := checkID.(primitive.ObjectID); !ok {
+			id, err := primitive.ObjectIDFromHex(checkID.(string))
+			if err != nil {
+				return nil, err
+			}
+			filter["_id"] = id
 		}
-		filter["_id"] = id
 	}
 
 	result := bson.M{}
@@ -131,17 +133,35 @@ func (mongoQuery MongoQuery) UpdateOne(filter bson.M, update bson.M) (interface{
 	collection, ctx, cancel := createCtxAndUserCol(mongoQuery.CollectionName)
 	defer cancel()
 
+	//convert id to object id when filter contain _id
+	if checkID := filter["_id"]; checkID != nil {
+		if _, ok := checkID.(primitive.ObjectID); !ok {
+			id, err := primitive.ObjectIDFromHex(checkID.(string))
+			if err != nil {
+				return nil, err
+			}
+			filter["_id"] = id
+		}
+	}
+
 	//update user information
 	newUpdate := bson.M{"$set": update}
 	updateResult, err := collection.UpdateOne(ctx, filter, newUpdate)
 	if err != nil {
-		log.Fatal(err)
 		return nil, err
 	}
+
 	if updateResult.MatchedCount == 0 {
 		return nil, nil
 	}
-	return update, nil
+
+	//query the new update
+	newEventType, err := mongoQuery.GetOne(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	return newEventType, nil
 }
 
 //DeleteOne func is to update one record from a collection
