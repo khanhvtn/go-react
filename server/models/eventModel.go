@@ -10,23 +10,23 @@ import (
 //Event model
 type Event struct {
 	ID                    primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
-	Name                  string             `json:"name" bson:"name"`
-	Language              []string           `json:"language" bson:"language"`
-	TypeID                primitive.ObjectID `json:"typeID" bson:"typeID"`
-	Location              string             `json:"location" bson:"location"`
-	Accommodation         string             `json:"accommodation" bson:"accommodation"`
-	RegistrationCloseDate time.Time          `json:"registrationCloseDate" bson:"registrationCloseDate"`
-	StartDate             time.Time          `json:"startDate" bson:"startDate"`
-	EndDate               time.Time          `json:"endDate" bson:"endDate"`
-	MaxParticipants       string             `json:"maxParticipants" bson:"maxParticipants"`
-	Tags                  []string           `json:"tags" bson:"tags"`
-	Description           string             `json:"description" bson:"description"`
-	OwnerID               primitive.ObjectID `json:"ownerID" bson:"ownerID"`
-	Budget                string             `json:"budget" bson:"budget"`
-	IsApproved            bool               `json:"isApproved" bson:"isApproved"`
-	Image                 string             `json:"image" bson:"image"`
-	ReviewerID            primitive.ObjectID `json:"reviewerID" bson:"reviewerID"`
-	IsFinished            bool               `json:"isFinished" bson:"isFinished"`
+	Name                  string             `json:"name,omitempty" bson:"name,omitempty"`
+	Language              []string           `json:"language,omitempty" bson:"language,omitempty"`
+	TypeID                primitive.ObjectID `json:"typeID,omitempty" bson:"typeID,omitempty"`
+	Location              string             `json:"location,omitempty" bson:"location,omitempty"`
+	Accommodation         string             `json:"accommodation,omitempty" bson:"accommodation,omitempty"`
+	RegistrationCloseDate time.Time          `json:"registrationCloseDate,omitempty" bson:"registrationCloseDate,omitempty"`
+	StartDate             time.Time          `json:"startDate,omitempty" bson:"startDate,omitempty"`
+	EndDate               time.Time          `json:"endDate,omitempty" bson:"endDate,omitempty"`
+	MaxParticipants       string             `json:"maxParticipants,omitempty" bson:"maxParticipants,omitempty"`
+	Tags                  []string           `json:"tags,omitempty" bson:"tags,omitempty"`
+	Description           string             `json:"description,omitempty" bson:"description,omitempty"`
+	OwnerID               primitive.ObjectID `json:"ownerID,omitempty" bson:"ownerID,omitempty"`
+	Budget                string             `json:"budget,omitempty" bson:"budget,omitempty"`
+	IsApproved            bool               `json:"isApproved,omitempty" bson:"isApproved,omitempty"`
+	Image                 string             `json:"image,omitempty" bson:"image,omitempty"`
+	ReviewerID            primitive.ObjectID `json:"reviewerID,omitempty" bson:"reviewerID,omitempty"`
+	IsFinished            bool               `json:"isFinished,omitempty" bson:"isFinished,omitempty"`
 }
 
 //EventQuery var is to query data from events collection

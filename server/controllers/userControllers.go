@@ -27,14 +27,13 @@ func createCtxAndUserCol() (userCol *mongo.Collection, ctx context.Context, canc
 //GetUsers func to get all users.
 func GetUsers(c *fiber.Ctx) error {
 	//get all user record
-	users, err := models.UserQuery.GetAll()
-	if err != nil {
+	users, errQuery := models.UserQuery.GetAll()
+	if errQuery != nil {
 		return utils.CusResponse(utils.CusResp{
 			Context: c,
-			Code:    500,
+			Code:    errQuery.Code,
 			Data:    nil,
-			Error:   errors.New("Something went wrong")})
-
+			Error:   errors.New(errQuery.Message)})
 	}
 	//response data to client
 	return utils.CusResponse(utils.CusResp{
@@ -53,38 +52,43 @@ func CreateUser(c *fiber.Ctx) error {
 	}
 
 	//check user exists or not
-	existedUser, err := models.UserQuery.GetOne(bson.M{"email": user.Email})
-	if err != nil {
+	existedUser, errQuery := models.UserQuery.GetOne(bson.M{"email": user.Email})
+	if errQuery != nil {
 		return utils.CusResponse(utils.CusResp{
 			Context: c,
-			Code:    500,
+			Code:    errQuery.Code,
 			Data:    nil,
-			Error:   errors.New("Something went wrong")})
+			Error:   errors.New(errQuery.Message)})
 	}
 	if existedUser != nil {
-		return c.Status(400).JSON(fiber.Map{"message": "Email already exists."})
+		return c.Status(400).JSON(fiber.Map{"message": ""})
+		return utils.CusResponse(utils.CusResp{
+			Context: c,
+			Code:    400,
+			Data:    nil,
+			Error:   errors.New("Email already exists")})
 	}
 
 	//hash password
-	hashPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), 10)
-	if err != nil {
+	hashPassword, errBcrypt := bcrypt.GenerateFromPassword([]byte(user.Password), 10)
+	if errBcrypt != nil {
 		return utils.CusResponse(utils.CusResp{
 			Context: c,
 			Code:    500,
 			Data:    nil,
-			Error:   errors.New("Something went wrong")})
+			Error:   errBcrypt})
 	}
 	//set hash password to new user
 	user.Password = string(hashPassword)
 
 	//convert User type to bson.M
-	bsonMUser, err := utils.InterfaceToBsonM(user)
-	if err != nil {
+	bsonMUser, errConvert := utils.InterfaceToBsonM(user)
+	if errConvert != nil {
 		return utils.CusResponse(utils.CusResp{
 			Context: c,
 			Code:    500,
 			Data:    nil,
-			Error:   errors.New("Something went wrong")})
+			Error:   errConvert})
 	}
 
 	//create user in database
@@ -92,9 +96,9 @@ func CreateUser(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.CusResponse(utils.CusResp{
 			Context: c,
-			Code:    500,
+			Code:    err.Code,
 			Data:    nil,
-			Error:   errors.New("Something went wrong")})
+			Error:   err})
 	}
 	return utils.CusResponse(utils.CusResp{
 		Context: c,
@@ -138,34 +142,43 @@ func Login(c *fiber.Ctx) error {
 	}
 
 	//check user exists or not
-	existedUser, err := models.UserQuery.GetOne(bson.M{"email": userLogin.Email})
+	existedUser, errQuery := models.UserQuery.GetOne(bson.M{"email": userLogin.Email})
 
-	if err != nil {
+	if errQuery != nil {
 		return utils.CusResponse(utils.CusResp{
 			Context: c,
-			Code:    500,
+			Code:    errQuery.Code,
 			Data:    nil,
-			Error:   errors.New("Something went wrong")})
+			Error:   errors.New(errQuery.Message)})
 	}
-	if existedUser == nil {
-		return c.Status(400).JSON(fiber.Map{"message": "Email or Password is invalid."})
+	if len(existedUser.(bson.M)) == 0 {
+		return utils.CusResponse(utils.CusResp{
+			Context: c,
+			Code:    400,
+			Data:    nil,
+			Error:   errors.New("Email or Password is invalid")})
+
 	}
 
 	user := existedUser.(bson.M)
 
 	//check password is valid
 	if err := bcrypt.CompareHashAndPassword([]byte(user["password"].(string)), []byte(userLogin.Password)); err != nil {
-		return c.Status(400).JSON(fiber.Map{"message": "Email or Password is invalid."})
+		return utils.CusResponse(utils.CusResp{
+			Context: c,
+			Code:    400,
+			Data:    nil,
+			Error:   errors.New("Email or Password is invalid")})
 	}
 
 	//create token
-	token, err := genToken(&user)
-	if err != nil {
+	token, errGenToken := genToken(&user)
+	if errGenToken != nil {
 		return utils.CusResponse(utils.CusResp{
 			Context: c,
 			Code:    500,
 			Data:    nil,
-			Error:   errors.New("Something went wrong")})
+			Error:   errGenToken})
 	}
 
 	//send back token to client
@@ -188,7 +201,7 @@ func UpdateUser(c *fiber.Ctx) error {
 			Context: c,
 			Code:    500,
 			Data:    nil,
-			Error:   errors.New("Something went wrong")})
+			Error:   err})
 	}
 
 	// hash password
@@ -198,7 +211,7 @@ func UpdateUser(c *fiber.Ctx) error {
 			Context: c,
 			Code:    500,
 			Data:    nil,
-			Error:   errors.New("Something went wrong")})
+			Error:   err})
 	}
 	user.Password = string(hashPass)
 
@@ -208,17 +221,13 @@ func UpdateUser(c *fiber.Ctx) error {
 	//update user information
 	filter := bson.M{"_id": id}
 
-	updateResult, err := models.UserQuery.UpdateOne(filter, bsonMUser)
-	if err != nil {
+	updateResult, errQuery := models.UserQuery.UpdateOne(filter, bsonMUser)
+	if errQuery != nil {
 		return utils.CusResponse(utils.CusResp{
 			Context: c,
-			Code:    500,
+			Code:    errQuery.Code,
 			Data:    nil,
-			Error:   errors.New("Something went wrong")})
-	}
-
-	if updateResult == nil {
-		return fiber.NewError(400, "Update Fail.")
+			Error:   errors.New(errQuery.Message)})
 	}
 
 	//response back to client
@@ -235,17 +244,13 @@ func DeleteUser(c *fiber.Ctx) error {
 	//get id from client request
 	id := c.Params("id")
 	//delete user from database
-	deletedResult, err := models.UserQuery.DeleteOne(bson.M{"_id": id})
-	if err != nil {
-		//response to client if there is an error.
+	deletedResult, errQuery := models.UserQuery.DeleteOne(bson.M{"_id": id})
+	if errQuery != nil {
 		return utils.CusResponse(utils.CusResp{
 			Context: c,
-			Code:    500,
+			Code:    errQuery.Code,
 			Data:    nil,
-			Error:   errors.New("Something went wrong")})
-	}
-	if deletedResult == nil {
-		return fiber.NewError(400, "Delete Fail.")
+			Error:   errors.New(errQuery.Message)})
 	}
 	//response to client when delete successful.
 	return utils.CusResponse(utils.CusResp{

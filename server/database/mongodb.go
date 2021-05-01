@@ -58,7 +58,7 @@ func createCtxAndUserCol(collectionName string) (col *mongo.Collection, ctx cont
 }
 
 //GetAll func is to return all record from a collection.
-func (mongoQuery MongoQuery) GetAll() (interface{}, error) {
+func (mongoQuery MongoQuery) GetAll() (interface{}, *fiber.Error) {
 	//get a collection , context, cancel func
 	collection, ctx, cancel := createCtxAndUserCol(mongoQuery.CollectionName)
 	defer cancel()
@@ -69,19 +69,22 @@ func (mongoQuery MongoQuery) GetAll() (interface{}, error) {
 	//get all user record
 	cur, err := collection.Find(ctx, bson.D{})
 	if err != nil {
-		return nil, err
+		return nil, fiber.NewError(500, err.Error())
 	}
 	defer cur.Close(ctx)
 	//map data to user variable
 	if err = cur.All(ctx, &data); err != nil {
-		return nil, err
+		return nil, fiber.NewError(500, err.Error())
 	}
 	//response data to client
+	if data == nil {
+		return []bson.M{}, nil
+	}
 	return data, nil
 }
 
 //GetOne func is to get one record from a collection
-func (mongoQuery MongoQuery) GetOne(filter bson.M) (interface{}, error) {
+func (mongoQuery MongoQuery) GetOne(filter bson.M) (interface{}, *fiber.Error) {
 	//get a collection , context, cancel func
 	collection, ctx, cancel := createCtxAndUserCol(mongoQuery.CollectionName)
 	defer cancel()
@@ -91,7 +94,7 @@ func (mongoQuery MongoQuery) GetOne(filter bson.M) (interface{}, error) {
 		if _, ok := checkID.(primitive.ObjectID); !ok {
 			id, err := primitive.ObjectIDFromHex(checkID.(string))
 			if err != nil {
-				return nil, err
+				return nil, fiber.NewError(500, err.Error())
 			}
 			filter["_id"] = id
 		}
@@ -102,18 +105,17 @@ func (mongoQuery MongoQuery) GetOne(filter bson.M) (interface{}, error) {
 	if err := collection.FindOne(ctx, filter).Decode(&result); err != nil {
 		if err != mongo.ErrNoDocuments {
 			//return err if there is a system error
-			return nil, err
+			return nil, fiber.NewError(500, err.Error())
 		}
 		//return nil data when id is not existed.
-		return nil, nil
-
+		return bson.M{}, nil
 	}
 
 	return result, nil
 }
 
 //Create func is to create a new record to a collection
-func (mongoQuery MongoQuery) Create(newData bson.M) (interface{}, error) {
+func (mongoQuery MongoQuery) Create(newData bson.M) (interface{}, *fiber.Error) {
 	//get a collection , context, cancel func
 	collection, ctx, cancel := createCtxAndUserCol(mongoQuery.CollectionName)
 	defer cancel()
@@ -121,14 +123,14 @@ func (mongoQuery MongoQuery) Create(newData bson.M) (interface{}, error) {
 	//create user in database
 	insertResult, err := collection.InsertOne(ctx, newData)
 	if err != nil {
-		return nil, err
+		return nil, fiber.NewError(500, err.Error())
 	}
 	newData["_id"] = insertResult.InsertedID
 	return newData, nil
 }
 
 //UpdateOne func is to update one record from a collection
-func (mongoQuery MongoQuery) UpdateOne(filter bson.M, update bson.M) (interface{}, error) {
+func (mongoQuery MongoQuery) UpdateOne(filter bson.M, update bson.M) (interface{}, *fiber.Error) {
 	//get a collection , context, cancel func
 	collection, ctx, cancel := createCtxAndUserCol(mongoQuery.CollectionName)
 	defer cancel()
@@ -138,7 +140,7 @@ func (mongoQuery MongoQuery) UpdateOne(filter bson.M, update bson.M) (interface{
 		if _, ok := checkID.(primitive.ObjectID); !ok {
 			id, err := primitive.ObjectIDFromHex(checkID.(string))
 			if err != nil {
-				return nil, err
+				return nil, fiber.NewError(500, err.Error())
 			}
 			filter["_id"] = id
 		}
@@ -148,42 +150,42 @@ func (mongoQuery MongoQuery) UpdateOne(filter bson.M, update bson.M) (interface{
 	newUpdate := bson.M{"$set": update}
 	updateResult, err := collection.UpdateOne(ctx, filter, newUpdate)
 	if err != nil {
-		return nil, err
+		return nil, fiber.NewError(500, err.Error())
 	}
 
 	if updateResult.MatchedCount == 0 {
-		return nil, nil
+		return bson.M{}, nil
 	}
 
 	//query the new update
-	newEventType, err := mongoQuery.GetOne(filter)
-	if err != nil {
-		return nil, err
+	newEventType, errQuery := mongoQuery.GetOne(filter)
+	if errQuery != nil {
+		return nil, errQuery
 	}
 
 	return newEventType, nil
 }
 
 //DeleteOne func is to update one record from a collection
-func (mongoQuery MongoQuery) DeleteOne(filter bson.M) (interface{}, error) {
+func (mongoQuery MongoQuery) DeleteOne(filter bson.M) (interface{}, *fiber.Error) {
 	//get a collection , context, cancel func
 	collection, ctx, cancel := createCtxAndUserCol(mongoQuery.CollectionName)
 	defer cancel()
 
-	result, err := mongoQuery.GetOne(filter)
-	if err != nil {
-		return nil, err
+	result, errGet := mongoQuery.GetOne(filter)
+	if errGet != nil {
+		return nil, errGet
 	}
 
 	//delete user from database
 	deleteResult, err := collection.DeleteOne(ctx, filter)
 	if err != nil {
 		//response to client if there is an error.
-		return nil, err
+		return nil, fiber.NewError(500, err.Error())
 	}
 
 	if deleteResult.DeletedCount == 0 {
-		return nil, fiber.NewError(400, "Delete Fail.")
+		return bson.M{}, nil
 	}
 
 	return result, nil

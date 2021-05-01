@@ -9,19 +9,15 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func genDefaultError(c *fiber.Ctx) error {
-	return utils.CusResponse(utils.CusResp{
-		Context: c,
-		Code:    500,
-		Data:    nil,
-		Error:   errors.New("Something went wrong")})
-}
-
 //GetEventTypes func is to return all event types.
 func GetEventTypes(c *fiber.Ctx) error {
-	eventTypes, err := models.EventTypeQuery.GetAll()
-	if err != nil {
-		return genDefaultError(c)
+	eventTypes, errQuery := models.EventTypeQuery.GetAll()
+	if errQuery != nil {
+		return utils.CusResponse(utils.CusResp{
+			Context: c,
+			Code:    errQuery.Code,
+			Data:    nil,
+			Error:   errors.New(errQuery.Message)})
 	}
 
 	return utils.CusResponse(utils.CusResp{
@@ -36,10 +32,13 @@ func GetEventTypes(c *fiber.Ctx) error {
 func GetEventType(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	eventType, err := models.EventTypeQuery.GetOne(bson.M{"_id": id})
-	if err != nil {
-		return genDefaultError(c)
-
+	eventType, errQuery := models.EventTypeQuery.GetOne(bson.M{"_id": id})
+	if errQuery != nil {
+		return utils.CusResponse(utils.CusResp{
+			Context: c,
+			Code:    errQuery.Code,
+			Data:    nil,
+			Error:   errors.New(errQuery.Message)})
 	}
 	return utils.CusResponse(utils.CusResp{
 		Context: c,
@@ -53,7 +52,11 @@ func CreateEventType(c *fiber.Ctx) error {
 	userReq := new(models.EventType)
 
 	if err := c.BodyParser(userReq); err != nil {
-		return genDefaultError(c)
+		return utils.CusResponse(utils.CusResp{
+			Context: c,
+			Code:    500,
+			Data:    nil,
+			Error:   err})
 	}
 
 	existedEventTypeChan := make(chan bson.M)
@@ -61,24 +64,43 @@ func CreateEventType(c *fiber.Ctx) error {
 	go func() {
 		//check event type exists or not
 		existedEventType, err := models.EventTypeQuery.GetOne(bson.M{"name": userReq.Name})
-		existedEventTypeChan <- bson.M{
-			"eventType": existedEventType,
-			"error":     err,
+		if err != nil {
+			existedEventTypeChan <- bson.M{
+				"eventType": existedEventType,
+				"error": bson.M{
+					"message": err.Message,
+					"code":    err.Code,
+				},
+			}
+		} else {
+			existedEventTypeChan <- bson.M{
+				"eventType": existedEventType,
+				"error":     nil,
+			}
 		}
 	}()
 
 	//convert  userReq to bson.M
 	bsonMEventType, err := utils.InterfaceToBsonM(userReq)
 	if err != nil {
-		return genDefaultError(c)
+		return utils.CusResponse(utils.CusResp{
+			Context: c,
+			Code:    500,
+			Data:    nil,
+			Error:   err})
 	}
 	//get result from existedEventTypeChan
 	result := <-existedEventTypeChan
 	if result["error"] != nil {
-		return genDefaultError(c)
+		err := result["error"].(bson.M)
+		return utils.CusResponse(utils.CusResp{
+			Context: c,
+			Code:    err["code"].(int),
+			Data:    nil,
+			Error:   errors.New(err["message"].(string))})
 	}
 
-	if result["eventType"] != nil {
+	if len(result["eventType"].(bson.M)) != 0 {
 		return utils.CusResponse(utils.CusResp{
 			Context: c,
 			Code:    400,
@@ -87,9 +109,13 @@ func CreateEventType(c *fiber.Ctx) error {
 	}
 
 	//Create a new event typoe
-	newEventType, err := models.EventTypeQuery.Create(bsonMEventType)
-	if err != nil {
-		return genDefaultError(c)
+	newEventType, errQuery := models.EventTypeQuery.Create(bsonMEventType)
+	if errQuery != nil {
+		return utils.CusResponse(utils.CusResp{
+			Context: c,
+			Code:    errQuery.Code,
+			Data:    nil,
+			Error:   errQuery})
 	}
 
 	return utils.CusResponse(utils.CusResp{
@@ -106,22 +132,34 @@ func UpdateEventType(c *fiber.Ctx) error {
 	userReq := new(models.EventType)
 
 	if err := c.BodyParser(userReq); err != nil {
-		return genDefaultError(c)
+		return utils.CusResponse(utils.CusResp{
+			Context: c,
+			Code:    500,
+			Data:    nil,
+			Error:   err})
 	}
 
 	//convert  userReq to bson.M
 	bsonMEventType, err := utils.InterfaceToBsonM(userReq)
 	if err != nil {
-		return genDefaultError(c)
+		return utils.CusResponse(utils.CusResp{
+			Context: c,
+			Code:    500,
+			Data:    nil,
+			Error:   err})
 	}
 
 	//filter
 	filter := bson.M{"_id": id}
 
 	//Update Event Type
-	updatedEventType, err := models.EventTypeQuery.UpdateOne(filter, bsonMEventType)
-	if err != nil {
-		return genDefaultError(c)
+	updatedEventType, errQuery := models.EventTypeQuery.UpdateOne(filter, bsonMEventType)
+	if errQuery != nil {
+		return utils.CusResponse(utils.CusResp{
+			Context: c,
+			Code:    errQuery.Code,
+			Data:    nil,
+			Error:   errors.New(errQuery.Message)})
 	}
 
 	return utils.CusResponse(utils.CusResp{
@@ -136,10 +174,14 @@ func DeleteEventType(c *fiber.Ctx) error {
 	id := c.Params("id")
 
 	//delete an event type
-	deletedEventType, err := models.EventTypeQuery.DeleteOne(bson.M{"_id": id})
+	deletedEventType, errQuery := models.EventTypeQuery.DeleteOne(bson.M{"_id": id})
 
-	if err != nil {
-		return genDefaultError(c)
+	if errQuery != nil {
+		return utils.CusResponse(utils.CusResp{
+			Context: c,
+			Code:    errQuery.Code,
+			Data:    nil,
+			Error:   errors.New(errQuery.Message)})
 	}
 
 	return utils.CusResponse(utils.CusResp{

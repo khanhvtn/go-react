@@ -1,0 +1,24 @@
+settings:
+    legacy:
+        force: false
+        interval: 0s
+schema:
+    - name: server
+      path: .
+      commands:
+          build:
+              status: true
+              method: go build
+          run:
+              status: true
+              method: ./go-react
+      watcher:
+          extensions:
+              - go
+          paths:
+              - /
+          ignore:
+              paths:
+                  - .git
+                  - .realize
+                  - vendor

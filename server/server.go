@@ -9,6 +9,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/gofiber/fiber/v2/middleware/cors"
+
 	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/gofiber/fiber/v2"
@@ -56,6 +58,7 @@ func main() {
 
 	//Middleware
 	app.Use(logger.New())
+	app.Use(cors.New())
 
 	//Set up routers
 	routes.SetUserRoutes(app)
